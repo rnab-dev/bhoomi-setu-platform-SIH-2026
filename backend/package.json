@@ -1,0 +1,11 @@
+{
+  "name": "bhoomi-setu-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Backend dev not implemented'",
+    "build": "echo 'Backend build not implemented'",
+    "lint": "echo 'Backend lint not implemented'",
+    "test": "echo 'Backend test not implemented'"
+  }
+}

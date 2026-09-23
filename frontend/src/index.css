@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 226 23% 96%; /* paper: #f2f4f9 */
+    --foreground: 219 36% 12%; /* ink: #0a1120 */
+
+    --card: 0 0% 100%; /* paper-2: #ffffff */
+    --card-foreground: 219 36% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 219 36% 12%;
+
+    --primary: 172 82% 29%; /* accent: #0e8a7a */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 100% 47%; /* slate: #3170c2 */
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 218 16% 96%; /* line-soft: #edf0f6 */
+    --muted-foreground: 214 14% 41%; /* text-mute: #5b6879 */
+
+    --accent: 172 82% 29%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 6 59% 47%; /* brick: #c04732 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 22% 91%; /* line: #e2e6ee */
+    --input: 220 22% 91%;
+    --ring: 172 82% 29%;
+
+    --radius: 12px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
