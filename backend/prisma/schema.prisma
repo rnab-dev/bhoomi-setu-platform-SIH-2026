@@ -87,6 +87,7 @@ model Person {
   updated_at     DateTime      @updatedAt
   parcels        ParcelOwner[]
   rehabCases     RehabCase[]
+  appUser        AppUser?
 }
 
 enum OwnershipType {
@@ -355,4 +356,57 @@ model AuditLog {
   ip_address String?
   metadata   Json?
   timestamp  DateTime @default(now())
+}
+
+// ============================================
+// AUTHENTICATION & IDENTITY
+// ============================================
+
+enum UserType {
+  CITIZEN
+  OFFICIAL
+}
+
+enum OfficialRole {
+  FIELD_OFFICER
+  LAO
+  DISTRICT_OFFICER
+  STATE_OFFICER
+  DOLR_ADMIN
+}
+
+enum JurisdictionLevel {
+  NATIONAL
+  STATE
+  DISTRICT
+  SUBDIVISION
+  TEHSIL
+  VILLAGE
+}
+
+model AppUser {
+  id           String    @id @default(uuid())
+  auth_user_id String    @unique
+  user_type    UserType
+
+  person_id    String?   @unique
+  person       Person?   @relation(fields: [person_id], references: [id])
+
+  officialProfile OfficialProfile?
+
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+}
+
+model OfficialProfile {
+  id                 String            @id @default(uuid())
+  app_user_id        String            @unique
+  role               OfficialRole
+  jurisdiction_level JurisdictionLevel
+  jurisdiction_id    String?
+
+  appUser            AppUser           @relation(fields: [app_user_id], references: [id])
+
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
 }
