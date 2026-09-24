@@ -1,0 +1,358 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ============================================
+// ADMINISTRATION
+// ============================================
+
+model State {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  census_code String?
+  districts   District[]
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+}
+
+model District {
+  id           String        @id @default(uuid())
+  name         String
+  census_code  String?
+  state_id     String
+  state        State         @relation(fields: [state_id], references: [id])
+  subDivisions SubDivision[]
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+
+  @@unique([state_id, name])
+}
+
+model SubDivision {
+  id          String   @id @default(uuid())
+  name        String
+  district_id String
+  district    District @relation(fields: [district_id], references: [id])
+  tehsils     Tehsil[]
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@unique([district_id, name])
+}
+
+model Tehsil {
+  id             String      @id @default(uuid())
+  name           String
+  census_code    String?
+  subDivision_id String
+  subDivision    SubDivision @relation(fields: [subDivision_id], references: [id])
+  villages       Village[]
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+
+  @@unique([subDivision_id, name])
+}
+
+model Village {
+  id          String   @id @default(uuid())
+  name        String
+  census_code String?
+  tehsil_id   String
+  tehsil      Tehsil   @relation(fields: [tehsil_id], references: [id])
+  parcels     Parcel[]
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@unique([tehsil_id, name])
+}
+
+// ============================================
+// STAKEHOLDERS
+// ============================================
+
+model Person {
+  id             String        @id @default(uuid())
+  full_name      String
+  contact_number String?
+  aadhaar_hash   String?       @unique
+  email          String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  parcels        ParcelOwner[]
+  rehabCases     RehabCase[]
+}
+
+enum OwnershipType {
+  PRIMARY
+  JOINT
+  TENANT
+  DISPUTED
+}
+
+model ParcelOwner {
+  id               String        @id @default(uuid())
+  parcel_id        String
+  person_id        String
+  share_percentage Float
+  ownership_type   OwnershipType
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  parcel Parcel @relation(fields: [parcel_id], references: [id])
+  person Person @relation(fields: [person_id], references: [id])
+
+  @@unique([parcel_id, person_id])
+}
+
+// ============================================
+// LAND (CADASTRE)
+// ============================================
+
+enum LandType {
+  RURAL
+  URBAN
+  FOREST
+  INDUSTRIAL
+}
+
+model Parcel {
+  id                 String  @id @default(uuid())
+  survey_number      String
+  village_id         String
+  area_hectares      Float
+  land_type          LandType @default(RURAL)
+  external_source_id String?
+  last_synced_at     DateTime?
+
+  // PostGIS unsupported type workaround
+  geometry Unsupported("geometry(Polygon, 4326)")?
+
+  village          Village           @relation(fields: [village_id], references: [id])
+  owners           ParcelOwner[]
+  acquisitionCases AcquisitionCase[]
+  documents        Document[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([village_id, survey_number])
+}
+
+// ============================================
+// PROJECTS
+// ============================================
+
+enum ProjectStatus {
+  DRAFT
+  PROPOSED
+  NOTIFIED
+  APPROVED
+  ACQUIRING
+  ACQUIRED
+  CANCELLED
+}
+
+model Project {
+  id             String        @id @default(uuid())
+  reference_code String        @unique
+  title          String
+  purpose        String
+  agency_id      String?
+  status         ProjectStatus @default(DRAFT)
+  
+  geometry Unsupported("geometry(Polygon, 4326)")?
+
+  acquisitionCases AcquisitionCase[]
+  documents        Document[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ============================================
+// ACQUISITION CASES & WORKFLOW
+// ============================================
+
+enum CaseStatus {
+  INITIATED
+  SECTION_11_NOTIFIED
+  OBJECTIONS_HEARING
+  SECTION_19_NOTIFIED
+  AWARD_PASSED
+  POSSESSION_TAKEN
+  CANCELLED
+}
+
+model AcquisitionCase {
+  id                String     @id @default(uuid())
+  project_id        String
+  parcel_id         String
+  status            CaseStatus @default(INITIATED)
+  notification_date DateTime?
+
+  project Project @relation(fields: [project_id], references: [id])
+  parcel  Parcel  @relation(fields: [parcel_id], references: [id])
+
+  compensation   CompensationAssessment?
+  rehabCases     RehabCase[]
+  documents      Document[]
+  workflowEvents WorkflowEvent[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([project_id, parcel_id])
+  @@index([status])
+}
+
+model WorkflowEvent {
+  id                 String   @id @default(uuid())
+  acquisitionCase_id String
+  from_status        String
+  to_status          String
+  actor_id           String
+  notes              String?
+  timestamp          DateTime @default(now())
+
+  acquisitionCase AcquisitionCase @relation(fields: [acquisitionCase_id], references: [id])
+}
+
+// ============================================
+// COMPENSATION
+// ============================================
+
+enum AssessmentStatus {
+  DRAFT
+  APPROVED
+  DISPUTED
+}
+
+model CompensationAssessment {
+  id                 String           @id @default(uuid())
+  case_id            String           @unique
+  market_value       Float
+  solatium_amount    Float
+  multiplier         Float
+  asset_value        Float
+  total_award_amount Float
+  status             AssessmentStatus @default(DRAFT)
+
+  acquisitionCase AcquisitionCase       @relation(fields: [case_id], references: [id])
+  payments        CompensationPayment[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  DISBURSED
+  FAILED
+}
+
+model CompensationPayment {
+  id                    String        @id @default(uuid())
+  assessment_id         String
+  amount                Float
+  status                PaymentStatus @default(PENDING)
+  transaction_reference String?
+  payment_date          DateTime?
+
+  assessment CompensationAssessment @relation(fields: [assessment_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ============================================
+// R&R (REHABILITATION)
+// ============================================
+
+enum RehabDisplacementStatus {
+  ASSESSED
+  ELIGIBLE
+  RELOCATED
+  COMPENSATED
+}
+
+model RehabCase {
+  id                  String                  @id @default(uuid())
+  case_id             String
+  family_head_id      String
+  displacement_status RehabDisplacementStatus @default(ASSESSED)
+
+  acquisitionCase AcquisitionCase @relation(fields: [case_id], references: [id])
+  familyHead      Person          @relation(fields: [family_head_id], references: [id])
+  benefits        RehabBenefit[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+enum BenefitType {
+  HOUSING_PLOT
+  BUILT_HOUSE
+  EMPLOYMENT
+  CASH_ANNUITY
+  ONE_TIME_LUMPSUM
+}
+
+enum BenefitStatus {
+  IDENTIFIED
+  APPROVED
+  DELIVERED
+}
+
+model RehabBenefit {
+  id             String        @id @default(uuid())
+  rehab_case_id  String
+  benefit_type   BenefitType
+  monetary_value Float?
+  status         BenefitStatus @default(IDENTIFIED)
+
+  rehabCase RehabCase @relation(fields: [rehab_case_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ============================================
+// GOVERNANCE
+// ============================================
+
+model Document {
+  id            String   @id @default(uuid())
+  file_url      String
+  checksum      String?
+  document_type String
+  uploaded_by   String
+  created_at    DateTime @default(now())
+
+  // Explicit Optional FKs for referential integrity
+  projectId         String?
+  parcelId          String?
+  acquisitionCaseId String?
+
+  project         Project?         @relation(fields: [projectId], references: [id])
+  parcel          Parcel?          @relation(fields: [parcelId], references: [id])
+  acquisitionCase AcquisitionCase? @relation(fields: [acquisitionCaseId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actor_id   String
+  action     String
+  table_name String
+  record_id  String
+  ip_address String?
+  metadata   Json?
+  timestamp  DateTime @default(now())
+}
