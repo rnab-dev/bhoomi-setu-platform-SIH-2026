@@ -18,6 +18,7 @@ model State {
   name        String     @unique
   census_code String?
   districts   District[]
+  projects    Project[]
   created_at  DateTime   @default(now())
   updated_at  DateTime   @updatedAt
 }
@@ -29,6 +30,7 @@ model District {
   state_id     String
   state        State         @relation(fields: [state_id], references: [id])
   subDivisions SubDivision[]
+  projects     Project[]
   created_at   DateTime      @default(now())
   updated_at   DateTime      @updatedAt
 
@@ -78,16 +80,18 @@ model Village {
 // ============================================
 
 model Person {
-  id             String        @id @default(uuid())
+  id             String         @id @default(uuid())
   full_name      String
   contact_number String?
-  aadhaar_hash   String?       @unique
+  aadhaar_hash   String?        @unique
   email          String?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
   parcels        ParcelOwner[]
   rehabCases     RehabCase[]
   appUser        AppUser?
+  grievances     Grievance[]
+  notifications  Notification[]
 }
 
 enum OwnershipType {
@@ -124,11 +128,11 @@ enum LandType {
 }
 
 model Parcel {
-  id                 String  @id @default(uuid())
+  id                 String    @id @default(uuid())
   survey_number      String
   village_id         String
   area_hectares      Float
-  land_type          LandType @default(RURAL)
+  land_type          LandType  @default(RURAL)
   external_source_id String?
   last_synced_at     DateTime?
 
@@ -139,6 +143,7 @@ model Parcel {
   owners           ParcelOwner[]
   acquisitionCases AcquisitionCase[]
   documents        Document[]
+  fieldTasks       FieldTask[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -167,7 +172,12 @@ model Project {
   purpose        String
   agency_id      String?
   status         ProjectStatus @default(DRAFT)
-  
+
+  state_id    String?
+  district_id String?
+  state       State?    @relation(fields: [state_id], references: [id])
+  district    District? @relation(fields: [district_id], references: [id])
+
   geometry Unsupported("geometry(Polygon, 4326)")?
 
   acquisitionCases AcquisitionCase[]
@@ -205,6 +215,8 @@ model AcquisitionCase {
   rehabCases     RehabCase[]
   documents      Document[]
   workflowEvents WorkflowEvent[]
+  fieldTasks     FieldTask[]
+  grievances     Grievance[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -359,6 +371,76 @@ model AuditLog {
 }
 
 // ============================================
+// FIELD TASKS
+// ============================================
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  VERIFIED
+  REJECTED
+}
+
+model FieldTask {
+  id                  String     @id @default(uuid())
+  assigned_to_id      String
+  parcel_id           String?
+  acquisition_case_id String?
+  task_type           String
+  status              TaskStatus @default(PENDING)
+  notes               String?
+
+  assigned_to     OfficialProfile  @relation(fields: [assigned_to_id], references: [id])
+  parcel          Parcel?          @relation(fields: [parcel_id], references: [id])
+  acquisitionCase AcquisitionCase? @relation(fields: [acquisition_case_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+// ============================================
+// GRIEVANCES & NOTIFICATIONS
+// ============================================
+
+enum GrievanceStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+model Grievance {
+  id                  String          @id @default(uuid())
+  person_id           String
+  acquisition_case_id String?
+  description         String
+  status              GrievanceStatus @default(OPEN)
+  assigned_to_id      String?
+  resolution_notes    String?
+
+  person          Person           @relation(fields: [person_id], references: [id])
+  acquisitionCase AcquisitionCase? @relation(fields: [acquisition_case_id], references: [id])
+  assignedTo      OfficialProfile? @relation(fields: [assigned_to_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model Notification {
+  id        String  @id @default(uuid())
+  person_id String
+  title     String
+  message   String
+  is_read   Boolean @default(false)
+  link      String?
+
+  person Person @relation(fields: [person_id], references: [id])
+
+  created_at DateTime @default(now())
+}
+
+// ============================================
 // AUTHENTICATION & IDENTITY
 // ============================================
 
@@ -385,17 +467,17 @@ enum JurisdictionLevel {
 }
 
 model AppUser {
-  id           String    @id @default(uuid())
-  auth_user_id String    @unique
+  id           String   @id @default(uuid())
+  auth_user_id String   @unique
   user_type    UserType
 
-  person_id    String?   @unique
-  person       Person?   @relation(fields: [person_id], references: [id])
+  person_id String? @unique
+  person    Person? @relation(fields: [person_id], references: [id])
 
   officialProfile OfficialProfile?
 
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
 
 model OfficialProfile {
@@ -405,8 +487,10 @@ model OfficialProfile {
   jurisdiction_level JurisdictionLevel
   jurisdiction_id    String?
 
-  appUser            AppUser           @relation(fields: [app_user_id], references: [id])
+  appUser            AppUser     @relation(fields: [app_user_id], references: [id])
+  fieldTasks         FieldTask[]
+  assignedGrievances Grievance[]
 
-  created_at         DateTime          @default(now())
-  updated_at         DateTime          @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
