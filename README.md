@@ -27,9 +27,7 @@ This project is structured as an NPM workspaces monorepo:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/prakashmoond999-spec/bhoomi-setu.git
-   cd bhoomi-setu
-   ```
+ 
 
 2. Install dependencies for all workspaces:
    ```bash
